@@ -1,0 +1,47 @@
+# Gradle / Android
+.gradle/
+.kotlin/
+build/
+*/build/
+local.properties
+*.iml
+.idea/
+captures/
+*.apk
+*.aab
+*.jar
+*.log
+
+# Native
+*.o
+*.so
+*.cxx/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# misc
+avd.bat
+# TTS speech models (large binary files, not for GitHub)
+sherpa-onnx-models/
+
+# Build outputs
+build_t5.log
+
+# Internal skills (not for public repo)
+skills/
+
+# Firebase config (contains sensitive API keys)
+app/google-services.json
+app/google-services-debug.json
+
+# Large binary files (sherpa-onnx AAR + TTS model files)
+app/libs/sherpa-onnx-1.13.6.aar
+app/src/main/assets/piper/
+
+# IDE
+*.ipr
+*.iws
+*.idea/
