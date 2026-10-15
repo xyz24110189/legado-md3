@@ -1,8 +1,8 @@
 # Legado with MD3
 
 <p align="left">
-  <a href="https://github.com/HapeLee/legado-with-MD3">简体中文</a> ｜ 
-  <a href="https://github.com/HapeLee/legado-with-MD3/blob/main/English.md">English</a>
+  <a href="https://github.com/xyz24110189/legado-md3">简体中文</a> ｜ 
+  <a href="https://github.com/xyz24110189/legado-md3/blob/main/English.md">English</a>
 </p>
 
 ---
@@ -68,6 +68,18 @@ Compared to the official version, this project provides the following exclusive 
    Multiple page turning modes including cover, simulation, sliding, and scrolling.
 7. **Fully Open Source**
    Ad-free and continuously improved.
+
+---
+
+## 📦 Download
+
+This fork's builds are published on
+[GitHub Releases](https://github.com/xyz24110189/legado-md3/releases).
+Pick the APK that matches your device ABI — use the `universal` build if unsure.
+
+> Note: this fork uses an **independent signing key**, which differs from the official Legado /
+> upstream legado-with-MD3 builds. If an older version is installed, **uninstall it first**,
+> otherwise installation will fail.
 
 ---
 

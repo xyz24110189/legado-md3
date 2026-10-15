@@ -1,8 +1,8 @@
 # Legado with MD3
 
 <p align="left">
-  <a href="https://github.com/HapeLee/legado-with-MD3">简体中文</a> ｜
-  <a href="https://github.com/HapeLee/legado-with-MD3/blob/main/English.md">English</a>
+  <a href="https://github.com/xyz24110189/legado-md3">简体中文</a> ｜
+  <a href="https://github.com/xyz24110189/legado-md3/blob/main/English.md">English</a>
 </p>
 
 > [!IMPORTANT]
@@ -55,10 +55,9 @@ Jetpack Compose 迁移等多项分支独有功能，并正在逐步从传统 Vie
 
 ## 💬 交流
 
-* **Telegram 群组：** [Legado with MD3](https://t.me/materado)
+* **上游社区：** [Legado with MD3 Telegram](https://t.me/materado)（属于上游 HapeLee 项目）
 * **版本发布：**
-  最新版本会自动发布至群组，也可在 [GitHub Releases](https://github.com/HapeLee/legado-with-MD3/releases)
-  下载。
+  本分支的版本在 [GitHub Releases](https://github.com/xyz24110189/legado-md3/releases) 下载。
 
 ---
 
