@@ -1,0 +1,114 @@
+name: Release
+
+# 只在形如 3.2.1 / v3.2.1 的版本 tag 上触发；
+# deps-piper-v1 这类资源 tag 不含两个点，不会误触发。
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android/sdk/ndk || true
+          df -h /
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compute version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Decode google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::secret GOOGLE_SERVICES_JSON 未配置"
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
+
+      - name: Decode signing keystore
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::secret SIGNING_KEY 未配置"
+            exit 1
+          fi
+          echo "$SIGNING_KEY" | base64 -d > app/my-release-key.jks
+          {
+            echo ""
+            echo "RELEASE_STORE_FILE=my-release-key.jks"
+            echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> gradle.properties
+
+      - name: Download Piper TTS models
+        run: |
+          URL="https://github.com/xyz24110189/legado-md3/releases/download/deps-piper-v1/piper-assets-v1.tar.gz"
+          SHA="7531580426d0f4736f23360076eb6aeb0a7baf395c5bbef051729316be48218e"
+          curl -sSL -o /tmp/piper-assets-v1.tar.gz "$URL"
+          echo "$SHA  /tmp/piper-assets-v1.tar.gz" | sha256sum -c -
+          mkdir -p app/src/main/assets/piper
+          tar -xzf /tmp/piper-assets-v1.tar.gz -C app/src/main/assets/piper
+
+      - name: Build release APKs
+        env:
+          COMMIT_NUMBER: ${{ github.run_number }}
+          APP_VERSION_NAME: ${{ env.VERSION }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleAppRelease -Pksp.incremental=false --no-configuration-cache
+
+      - name: Collect assets
+        run: |
+          mkdir -p dist
+          OUT=app/build/outputs/apk/app/release
+          cp "$OUT/app-app-arm64-v8a-release.apk"   "dist/legado-md3-${VERSION}-arm64-v8a.apk"
+          cp "$OUT/app-app-armeabi-v7a-release.apk" "dist/legado-md3-${VERSION}-armeabi-v7a.apk"
+          cp "$OUT/app-app-universal-release.apk"   "dist/legado-md3-${VERSION}-universal.apk"
+          cp app/build/outputs/mapping/appRelease/mapping.txt dist/mapping.txt
+          ls -lh dist
+
+      - name: Prepare release body
+        run: |
+          if [ -f ".github/release-notes/${VERSION}.md" ]; then
+            cp ".github/release-notes/${VERSION}.md" release-body.md
+          else
+            printf '自动构建发布 **%s**。\n\n详见提交记录与 CHANGELOG。\n' "$VERSION" > release-body.md
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Legado MD3 ${{ env.VERSION }}
+          body_path: release-body.md
+          generate_release_notes: true
+          files: dist/*

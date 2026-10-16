@@ -10,6 +10,9 @@ captures/
 *.apk
 *.aab
 *.jar
+# 构建必需、必须入库的 jar（gradle wrapper + cronet 编译期依赖）
+!gradle/wrapper/gradle-wrapper.jar
+!app/cronetlib/*.jar
 *.log
 
 # Native
@@ -37,8 +40,7 @@ skills/
 app/google-services.json
 app/google-services-debug.json
 
-# Large binary files (sherpa-onnx AAR + TTS model files)
-app/libs/sherpa-onnx-1.13.6.aar
+# TTS 模型资源（大文件，不进仓库；CI 从 Release 下载 piper 模型）
 app/src/main/assets/piper/
 
 # IDE
