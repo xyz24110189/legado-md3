@@ -33,9 +33,6 @@ sherpa-onnx-models/
 # Build outputs
 build_t5.log
 
-# Internal skills (not for public repo)
-skills/
-
 # Firebase config (contains sensitive API keys)
 app/google-services.json
 app/google-services-debug.json
