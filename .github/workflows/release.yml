@@ -79,6 +79,15 @@ jobs:
           mkdir -p app/src/main/assets/piper
           tar -xzf /tmp/piper-assets-v1.tar.gz -C app/src/main/assets/piper
 
+      - name: Download ZipVoice TTS models
+        run: |
+          URL="https://github.com/xyz24110189/legado-md3/releases/download/deps-piper-v1/zipvoice-assets-v1.tar.gz"
+          SHA="46ea2ca2ca4245cf66d318e04d70a160c65fa9f115ec11154b92d1f8894a1ed5"
+          curl -sSL -o /tmp/zipvoice-assets-v1.tar.gz "$URL"
+          echo "$SHA  /tmp/zipvoice-assets-v1.tar.gz" | sha256sum -c -
+          mkdir -p app/src/main/assets/piper
+          tar -xzf /tmp/zipvoice-assets-v1.tar.gz -C app/src/main/assets/piper
+
       - name: Build release APKs
         env:
           COMMIT_NUMBER: ${{ github.run_number }}
