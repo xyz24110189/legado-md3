@@ -85,6 +85,21 @@ object PiperModelManager {
     /** sherpa 需要 dataDir 指向 espeak-ng-data 所在目录（含 dict 和 cmn_dict 等）。 */
     fun espeakDataDir(context: Context): File = File(modelDir(context), ESPEAK_DATA)
 
+    /**
+     * ZipVoice 的 espeak 前端在 Android 上要求 dataDir 是绝对文件路径：
+     * sherpa-onnx 的 InitEspeak 会检查首字符是否为 '/'，否则直接 exit(-1)（原生退出，表现为闪退）。
+     * 首次使用时把 assets/piper/espeak-ng-data 复制到 filesDir，之后复用。
+     */
+    fun ensureEspeakData(context: Context): File = synchronized(this) {
+        val target = espeakDataDir(context)
+        val marker = File(target, "phontab")
+        if (!marker.isFile || marker.length() == 0L) {
+            target.mkdirs()
+            copyTree(context, "piper/$ESPEAK_DATA", target)
+        }
+        target
+    }
+
     fun assetsReady(context: Context, key: String): Boolean =
         onnx(context, key)?.isFile == true
 

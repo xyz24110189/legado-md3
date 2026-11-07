@@ -60,13 +60,15 @@ class PiperEngine(context: Context, modelKey: String) {
                 val decoder = "$assetModelDir/decoder.int8.onnx"
                 val vocoder = "$assetModelDir/vocos_24khz.onnx"
                 val lexicon = "$assetModelDir/lexicon.txt,$assetModelDir/lexicon-en-us.txt"
-                AppLog.put("PiperEngine preflight kind=zipvoice encoder=$encoder decoder=$decoder vocoder=$vocoder")
+                // Android 上 espeak 的 dataDir 必须是绝对文件路径，assets 相对路径会导致原生 exit(-1)
+                val espeakFsDir = PiperModelManager.ensureEspeakData(appContext)
+                AppLog.put("PiperEngine preflight kind=zipvoice espeak=${espeakFsDir.absolutePath} encoder=$encoder decoder=$decoder vocoder=$vocoder")
                 val zipvoice = OfflineTtsZipVoiceModelConfig(
                     tokens = tokensPath,
                     encoder = encoder,
                     decoder = decoder,
                     vocoder = vocoder,
-                    dataDir = espeakPath,
+                    dataDir = espeakFsDir.absolutePath,
                     lexicon = lexicon,
                     featScale = 0.1f,
                     tShift = 0.5f,
