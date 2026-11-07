@@ -12,11 +12,7 @@ import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsMatchaModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
-import com.k2fsa.sherpa.onnx.OfflineTtsZipVoiceModelConfig
-import com.k2fsa.sherpa.onnx.GenerationConfig
 import io.legado.app.constant.AppLog
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 /**
  * Piper (sherpa-onnx VITS/Matcha) 中文推理引擎。
@@ -25,9 +21,6 @@ import java.nio.ByteOrder
 class PiperEngine(context: Context, modelKey: String) {
 
     private val appContext = context.applicationContext
-    private val kind = PiperModelManager.kindOf(modelKey)
-    private val assetModelDir = "piper/$modelKey"
-    private val zipVoiceRef: RefAudio? by lazy { loadZipVoiceReference() }
     private val tts: OfflineTts
 
     /** 实际生效的 ORT provider（优先 NNAPI，其次 XNNPACK，最后 CPU）。 */
@@ -35,6 +28,7 @@ class PiperEngine(context: Context, modelKey: String) {
 
     init {
         val assetManager = appContext.assets
+        val assetModelDir = "piper/$modelKey"
         // 直接从 assets 加载（sherpa-android 官方标准做法）。
         // 避免把 espeak-ng-data 这种大目录树提取到内部存储后再从文件加载时出现的读取/路径问题。
         val assetNames = assetManager.list(assetModelDir).orEmpty()
@@ -54,36 +48,8 @@ class PiperEngine(context: Context, modelKey: String) {
             .sorted()
             .joinToString(",") { "$assetModelDir/$it" }
 
+        val kind = PiperModelManager.kindOf(modelKey)
         val modelConfigFactory: (String) -> OfflineTtsModelConfig = when (kind) {
-            PiperModelManager.ModelKind.ZIPVOICE -> {
-                val encoder = "$assetModelDir/encoder.int8.onnx"
-                val decoder = "$assetModelDir/decoder.int8.onnx"
-                val vocoder = "$assetModelDir/vocos_24khz.onnx"
-                val lexicon = "$assetModelDir/lexicon.txt,$assetModelDir/lexicon-en-us.txt"
-                AppLog.put("PiperEngine preflight kind=zipvoice encoder=$encoder decoder=$decoder vocoder=$vocoder")
-                val zipvoice = OfflineTtsZipVoiceModelConfig(
-                    tokens = tokensPath,
-                    encoder = encoder,
-                    decoder = decoder,
-                    vocoder = vocoder,
-                    dataDir = espeakPath,
-                    lexicon = lexicon,
-                    featScale = 0.1f,
-                    tShift = 0.5f,
-                    targetRms = 0.1f,
-                    guidanceScale = 1.0f,
-                )
-                val factory = { provider: String ->
-                    OfflineTtsModelConfig(
-                        zipvoice = zipvoice,
-                        numThreads = 4,
-                        debug = false,
-                        provider = provider,
-                    )
-                }
-                factory
-            }
-
             PiperModelManager.ModelKind.MATCHA -> {
                 val acousticName = onnxNames.firstOrNull { !it.contains("vocoder", true) && !it.contains("vocos", true) }
                     ?: onnxName
@@ -214,29 +180,11 @@ class PiperEngine(context: Context, modelKey: String) {
 
     /** 合成文本为 float32 samples（22050Hz），失败返回空。 */
     fun synthesize(text: String, speed: Float): FloatArray = runCatching {
-        val audio: GeneratedAudio = if (kind == PiperModelManager.ModelKind.ZIPVOICE) {
-            val ref = zipVoiceRef
-            if (ref == null) {
-                AppLog.put("PiperEngine ZipVoice 参考音缺失，无法合成")
-                return@runCatching FloatArray(0)
-            }
-            tts.generateWithConfig(
-                text = text,
-                config = GenerationConfig(
-                    speed = speed.coerceIn(0.5f, 2.0f),
-                    referenceAudio = ref.samples,
-                    referenceSampleRate = ref.sampleRate,
-                    referenceText = ZIPVOICE_REF_TEXT,
-                    numSteps = 4,
-                ),
-            )
-        } else {
-            tts.generate(
-                text = text,
-                sid = 0,
-                speed = speed.coerceIn(0.5f, 2.0f),
-            )
-        }
+        val audio: GeneratedAudio = tts.generate(
+            text = text,
+            sid = 0,
+            speed = speed.coerceIn(0.5f, 2.0f),
+        )
         audio.samples
     }.getOrElse {
         AppLog.put("PiperEngine synthesize failed: ${it.localizedMessage}", it)
@@ -249,73 +197,8 @@ class PiperEngine(context: Context, modelKey: String) {
         runCatching { tts.free() }
     }
 
-    private fun loadZipVoiceReference(): RefAudio? {
-        if (kind != PiperModelManager.ModelKind.ZIPVOICE) return null
-        return runCatching {
-            appContext.assets.open("$assetModelDir/ref_zh.wav").use { input ->
-                loadPcm16Wav(input.readBytes())
-            }
-        }.getOrElse {
-            AppLog.put("PiperEngine 读取 ZipVoice 参考音失败: ${it.localizedMessage}", it)
-            null
-        }
-    }
-
-    /** 解析 16-bit PCM WAV（单/双声道）为 float32 单声道采样。 */
-    private fun loadPcm16Wav(bytes: ByteArray): RefAudio? {
-        if (bytes.size < 44) return null
-        if (bytes[0] != 'R'.code.toByte() || bytes[1] != 'I'.code.toByte() ||
-            bytes[2] != 'F'.code.toByte() || bytes[3] != 'F'.code.toByte()
-        ) return null
-        val bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-        var pos = 12
-        var sampleRate = 0
-        var channels = 1
-        var bitsPerSample = 16
-        var dataOffset = -1
-        var dataLength = 0
-        while (pos + 8 <= bytes.size) {
-            val id = String(bytes, pos, 4, Charsets.US_ASCII)
-            val size = bb.getInt(pos + 4)
-            val body = pos + 8
-            when (id) {
-                "fmt " -> {
-                    channels = bb.getShort(body + 2).toInt().coerceAtLeast(1)
-                    sampleRate = bb.getInt(body + 4)
-                    bitsPerSample = bb.getShort(body + 14).toInt()
-                }
-
-                "data" -> {
-                    dataOffset = body
-                    dataLength = size
-                    break
-                }
-            }
-            pos = body + size + (size and 1)
-        }
-        if (dataOffset < 0 || sampleRate <= 0 || bitsPerSample != 16) return null
-        val available = (bytes.size - dataOffset).coerceAtMost(dataLength)
-        val frames = available / (2 * channels)
-        if (frames <= 0) return null
-        val samples = FloatArray(frames)
-        for (i in 0 until frames) {
-            var acc = 0f
-            for (c in 0 until channels) {
-                val idx = dataOffset + (i * channels + c) * 2
-                acc += bb.getShort(idx) / 32768f
-            }
-            samples[i] = acc / channels
-        }
-        return RefAudio(samples, sampleRate)
-    }
-
-    private data class RefAudio(val samples: FloatArray, val sampleRate: Int)
-
     companion object {
         const val SAMPLE_RATE = 22050
-
-        /** 与 assets/piper/zipvoice/ref_zh.wav 的逐字原文严格一致。 */
-        const val ZIPVOICE_REF_TEXT = "清晨的阳光洒在窗台上，远处传来阵阵鸟鸣，新的一天就这样开始了。"
         private const val PREFS_NAME = "piper_tts_providers"
 
         /** 最近一次成功创建引擎所用的 provider（nnapi/xnnpack/cpu），供 UI 展示。 */

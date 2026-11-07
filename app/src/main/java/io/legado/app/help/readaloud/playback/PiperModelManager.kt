@@ -5,24 +5,21 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * 管理 assets 内置的 Piper / ZipVoice（sherpa-onnx）中文模型资源，
- * 首次使用时拷贝到 filesDir。每个模型位于 `assets/piper/<key>/` 子目录，
+ * 管理 assets 内置的 Piper（sherpa-onnx VITS/espeak）中文模型资源，
+ * 首次使用拷贝到 filesDir。每个模型位于 `assets/piper/<key>/` 子目录，
  * espeak-ng-data 为共享的树形目录。
  */
 object PiperModelManager {
 
     const val ESPEAK_DATA = "espeak-ng-data"
 
-    /** 模型家族：决定 PiperEngine 如何构建 sherpa 配置。 */
+    /** 模型家族：决定 PiperEngine 如何构造 sherpa 配置。 */
     enum class ModelKind {
         /** VITS + espeak-ng-data 前端（piper 系列）。 */
         VITS_ESPEAK,
 
         /** Matcha 扩散声学模型 + 声码器 + lexicon 前端。 */
         MATCHA,
-
-        /** ZipVoice 零样本克隆：参考音频 + 逐字原文，24kHz 输出。 */
-        ZIPVOICE,
     }
 
     data class PiperModel(
@@ -35,7 +32,6 @@ object PiperModelManager {
         PiperModel("xiao_ya", "小雅"),
         PiperModel("chaowen", "超雯"),
         PiperModel("baker", "Baker 播音女声", ModelKind.MATCHA),
-        PiperModel("zipvoice", "ZipVoice 克隆（实验）", ModelKind.ZIPVOICE),
     )
 
     fun kindOf(key: String): ModelKind =
@@ -82,7 +78,7 @@ object PiperModelManager {
     fun tokens(context: Context, key: String): File =
         File(modelSubDir(context, key), "tokens.txt")
 
-    /** sherpa 需要 dataDir 指向 espeak-ng-data 所在目录（含 dict 和 cmn_dict 等）。 */
+    /** sherpa 需要 dataDir 指向 espeak-ng-data 所在目录（含 dict 与 cmn_dict 等）。 */
     fun espeakDataDir(context: Context): File = File(modelDir(context), ESPEAK_DATA)
 
     fun assetsReady(context: Context, key: String): Boolean =
